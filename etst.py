@@ -55,7 +55,7 @@ class Form(StatesGroup):
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     await Form.brand.set()
-    await message.reply("Привет! Это Technodeus. Мы поможем вам оценить твой девайс, который можно сдать нам в Trade-in, чтобы получить хорошую скидку на новое устройство! В случае, если ты не знаешь ответ на какой-либо из следующих вопросов - не переживай, с тобой свяжется менеджер и поможет уточнить все детали\nВыберите категорию устройства:", reply_markup=device_categories_keyboard)
+    await message.reply("Привет! Это Technodeus. Мы поможем вам оценить ваш девайс, который можно сдать нам в Trade-in, чтобы получить хорошую скидку на новое устройство! В случае, если вы не знаете ответ на какой-либо из следующих вопросов - не переживайте, с вами свяжется менеджер и поможет уточнить все детали\nВыберите категорию устройства:", reply_markup=device_categories_keyboard)
 
 @dp.message_handler(commands=['Technoadmin'], state='*')
 async def admin_panel(message: types.Message, state: FSMContext):
@@ -83,6 +83,10 @@ async def select_device_category(message: types.Message, state: FSMContext):
         await Form.model.set()
         await message.reply(f"Выберите модель {selected_category}:", reply_markup=models_keyboard)
 
+@dp.message_handler(lambda message: message.text == 'Моей модели нет', state=Form.model)
+async def no_model(message: types.Message, state: FSMContext):
+    await Form.model.set()
+    await message.reply("Напишите полное название модели своего устройства:", reply_markup=types.ReplyKeyboardRemove())
 
 @dp.message_handler(state=Form.model)
 async def select_memory(message: types.Message, state: FSMContext):
@@ -109,12 +113,12 @@ async def select_memory(message: types.Message, state: FSMContext):
             memory_keyboard.add(KeyboardButton(memory))
         memory_keyboard.add(KeyboardButton('Вернуться в меню'))
         await Form.memory.set()
-        if message.text == "Моей модели нет" and user_data['brand'] == "Apple Watch":
+        if user_data['brand'] == "Apple Watch":
             await message.reply("Выберите размер экрана для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text == "Моей модели нет" and user_data['brand'] != "Apple Watch":
+        elif user_data['brand'] != "Apple Watch" and user_data['brand'] != "Mac":
             await message.reply("Выберите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text != "Моей модели нет" and user_data['brand'] == "Apple Watch":
-            await message.reply(f"Выберите размер экрана для {selected_model}:",reply_markup=memory_keyboard)
+        elif user_data['brand'] == "Mac":
+            await message.reply("Укажите, пожалуйста, объёмы оперативной и встроенной памяти через /. Например «8/256»:", reply_markup=types.ReplyKeyboardRemove())
         else:
             await message.reply(f"Выберите конфигурацию памяти для {selected_model}:", reply_markup=memory_keyboard)
 
@@ -160,12 +164,24 @@ async def select_battery(message: types.Message, state: FSMContext):
     await state.update_data(color=selected_color)
     await Form.battery.set()
     skip_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    skip_keyboard.add(KeyboardButton('Пропустить'))
-    skip_keyboard.add(KeyboardButton('Вернуться в меню'))
-    await message.reply("Напишите, какая сейчас емкость аккумулятора вашего устройства (напишите просто число, проценты указывать не нужно): \nПроцент емкости аккумулятора обычно расположен в настройках телефоне в разделе «Батарея»/«Аккумулятор»", reply_markup=skip_keyboard)
+    user_data = await state.get_data()
+    if user_data['brand'] == 'Mac': 
+        skip_keyboard.add(KeyboardButton('Нормальное'))
+        skip_keyboard.add(KeyboardButton('Срок эксплуатации истекает'))
+        skip_keyboard.add(KeyboardButton('Требуется замена'))
+        skip_keyboard.add(KeyboardButton('Требуется обслуживание'))
+        skip_keyboard.add(KeyboardButton('Пропустить'))
+        skip_keyboard.add(KeyboardButton('Вернуться в меню'))
+        await message.reply("Выберете, какое состояние у аккумулятора вашего устройства: \n1. Нормальное (обычное). Аккумулятор работает так, как должен.\n2. Срок эксплуатации истекает. Аккумулятор уже не новый и проявляет первые признаки износа.\n3. Требуется замена. Аккумулятор функционирует нормально, но стал держать заряд значительно хуже.\n4. Требуется обслуживание. Аккумулятор может быть повреждён или перегреваться. Для устранения проблем необходимо обратиться в сервисный центр.", reply_markup=skip_keyboard)
+    else:
+        skip_keyboard.add(KeyboardButton('Пропустить'))
+        skip_keyboard.add(KeyboardButton('Вернуться в меню'))
+        await message.reply("Какая сейчас емкость аккумулятора вашего устройства (напишите просто число, проценты указывать не нужно): \nПроцент емкости аккумулятора обычно расположен в настройках телефоне в разделе «Батарея»/«Аккумулятор»", reply_markup=skip_keyboard)
+
 
 @dp.message_handler(state=Form.battery)
 async def select_condition(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
     if message.text == 'Пропустить':
         condition_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         condition_keyboard.add(KeyboardButton('Отличное'))
@@ -178,7 +194,7 @@ async def select_condition(message: types.Message, state: FSMContext):
     if message.text == 'Вернуться в меню':
         await return_to_menu(message, state)
         return
-    if not message.text.isdigit():
+    if not message.text.isdigit and user_data['brand'] != 'Mac':
         await message.reply("Пожалуйста, введите числовое значение для емкости аккумулятора.")
         return
     battery_capacity = message.text
@@ -205,7 +221,7 @@ async def select_completeness(message: types.Message, state: FSMContext):
     completeness_keyboard.add(KeyboardButton('Неполная'))
     completeness_keyboard.add(KeyboardButton('Вернуться в меню'))
     await Form.completeness.set()
-    if (user_data['brand'] == 'Apple Watch'):
+    if (user_data['brand'] == 'Apple Watch' or user_data['brand'] == 'Mac'):
         await message.reply("У вас есть полный комплект устройства (коробка, кабель и т.п.)?", reply_markup=completeness_keyboard)
     else:
         await message.reply("У вас есть полный комплект устройства (коробка, кабель, наушники и т.п.)?", reply_markup=completeness_keyboard)
@@ -253,7 +269,7 @@ async def request_repair_details(message: types.Message, state: FSMContext):
         conf_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         conf_keyboard.add(KeyboardButton('Пропустить'))
         await Form.photos.set()
-        await message.reply("Пожалуйста, отправьте фотографии вашего устройства. Фото очень помогают нам точнее оценить состояние вашего устройства, чтобы предложить лучшую стоимость для вас, поэтому очень просим тебя не пропускать этот пункт🙂", reply_markup=conf_keyboard)
+        await message.reply("Пожалуйста, отправьте фотографии вашего устройства. Фото очень помогают нам точнее оценить состояние вашего устройства, чтобы предложить лучшую стоимость для вас, поэтому очень просим не пропускать этот пункт🙂", reply_markup=conf_keyboard)
 
 @dp.message_handler(state=Form.repair_details)
 async def request_photos(message: types.Message, state: FSMContext):
@@ -262,14 +278,14 @@ async def request_photos(message: types.Message, state: FSMContext):
     conf_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     conf_keyboard.add(KeyboardButton('Пропустить'))
     await Form.photos.set()
-    await message.reply("Пожалуйста, отправьте фотографии вашего устройства. Фото очень помогают нам точнее оценить состояние вашего устройства, чтобы предложить лучшую стоимость для вас, поэтому очень просим тебя не пропускать этот пункт🙂", reply_markup=conf_keyboard)
+    await message.reply("Пожалуйста, отправьте фотографии вашего устройства. Фото очень помогают нам точнее оценить состояние вашего устройства, чтобы предложить лучшую стоимость для вас, поэтому очень просим не пропускать этот пункт🙂", reply_markup=conf_keyboard)
 
 @dp.message_handler(lambda message: message.text.lower() == 'пропустить', state=Form.photos)
 async def skip_photos(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
     if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("Нам нужно чуть больше времени, чтоб оценить твой девайс, в ближайшее время вернемся с ответом.")
+        await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
@@ -289,9 +305,9 @@ async def skip_photos(message: types.Message, state: FSMContext):
                         break
 
             if price is not None:
-                await message.reply(f"Вот примерная оценка стоимости твоего девайса: {price} рублей. Точнее оценить стоимость может лично менеджер, если тебе это интересно, мы этим займемся и ближайшее время свяжемся с тобой.")
+                await message.reply(f"Вот примерная оценка стоимости вашего девайса: {price} рублей. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся и ближайшее время свяжемся с вами.")
         except Exception as e:
-            await message.reply("Нам нужно чуть больше времени, чтоб оценить твой девайс, в ближайшее время вернемся с ответом.")
+            await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
             
     contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
@@ -318,7 +334,7 @@ async def confirm_update(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
     if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("Нам нужно чуть больше времени, чтоб оценить твой девайс, в ближайшее время вернемся с ответом.")
+        await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
@@ -339,9 +355,9 @@ async def confirm_update(message: types.Message, state: FSMContext):
                         break
 
             if price is not None:
-                await message.reply(f"Вот примерная оценка стоимости твоего девайса: {price} рублей. Точнее оценить стоимость может лично менеджер, если тебе это интересно, мы этим займемся и ближайшее время свяжемся с тобой.")
+                await message.reply(f"Вот примерная оценка стоимости вашего девайса: {price} рублей. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся и ближайшее время свяжемся с вами.")
         except Exception as e:
-            await message.reply("Нам нужно чуть больше времени, чтоб оценить твой девайс, в ближайшее время вернемся с ответом.")
+            await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
             
     contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
