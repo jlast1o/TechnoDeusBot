@@ -10,7 +10,6 @@ from aiogram.dispatcher.filters.state import State, StatesGroup
 from aiogram.utils import executor
 from aiogram.types import InputMediaPhoto
 
-
 API_TOKEN = '7067090296:AAExj1Z-u-L_0foR8-Ktjv1CdCQ5UgUtSP0'
 CHAT_ID = '-1002214136948'
 
@@ -21,15 +20,20 @@ dp = Dispatcher(bot, storage=storage)
 # Загружаем таблицу с моделями и памятью телефонов
 df_dict = pd.read_excel('phones.xlsx', sheet_name=None)
 
-# Создаем клавиатуру с кнопками категорий устройств
-device_categories_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-device_categories_keyboard.add(KeyboardButton('iPhone'))
-device_categories_keyboard.add(KeyboardButton('Mac'))
-device_categories_keyboard.add(KeyboardButton('Apple Watch'))
-device_categories_keyboard.add(KeyboardButton('Google Pixel'))
-device_categories_keyboard.add(KeyboardButton('Samsung'))
-device_categories_keyboard.add(KeyboardButton('Другое'))
-device_categories_keyboard.add(KeyboardButton('Вернуться в меню'))
+# Словарь с доступными категориями для каждого бренда
+brand_categories = {
+    'Apple': ['iPhone', 'iPad', 'iMac', 'MacBook', 'Apple Watch'],
+    'Samsung': ['Galaxy'],
+    'Google': ['Pixel']
+}
+
+# Создаем клавиатуру с кнопками брендов устройств
+brands_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+brands_keyboard.add(KeyboardButton('Apple'))
+brands_keyboard.add(KeyboardButton('Samsung'))
+brands_keyboard.add(KeyboardButton('Google'))
+brands_keyboard.add(KeyboardButton('Другое'))
+brands_keyboard.add(KeyboardButton('Вернуться в меню'))
 
 # Создаем клавиатуру для админки
 admin_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
@@ -38,6 +42,7 @@ admin_keyboard.add(KeyboardButton('Вернуться в меню'))
 
 class Form(StatesGroup):
     brand = State()
+    category = State()
     model = State()
     memory = State()
     color = State()
@@ -55,25 +60,46 @@ class Form(StatesGroup):
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
     await Form.brand.set()
-    await message.reply("Привет! Это Technodeus. Мы поможем вам оценить ваш девайс, который можно сдать нам в Trade-in, чтобы получить хорошую скидку на новое устройство! В случае, если вы не знаете ответ на какой-либо из следующих вопросов - не переживайте, с вами свяжется менеджер и поможет уточнить все детали\nВыберите категорию устройства:", reply_markup=device_categories_keyboard)
+    await message.reply(
+        "Привет! Это Technodeus. Мы поможем вам оценить ваш девайс, который можно сдать нам в Trade-in, чтобы получить хорошую скидку на новое устройство! В случае, если вы не знаете ответ на какой-либо из следующих вопросов - не переживайте, с вами свяжется менеджер и поможет уточнить все детали\nВыберите бренд устройства:",
+        reply_markup=brands_keyboard
+    )
 
 @dp.message_handler(commands=['Technoadmin'], state='*')
 async def admin_panel(message: types.Message, state: FSMContext):
     await state.finish()
     await message.reply("Добро пожаловать в админку. Вы можете обновить таблицу, отправив новый файл.", reply_markup=admin_keyboard)
 
+@dp.message_handler(lambda message: message.text in ['Apple', 'Samsung', 'Google', 'Другое'], state=Form.brand)
+async def select_brand(message: types.Message, state: FSMContext):
+    selected_brand = message.text
+    await state.update_data(brand=selected_brand)
+    if selected_brand == 'Другое':
+        await Form.model.set()
+        await message.reply("Напишите полное название модели своего устройства:", reply_markup=types.ReplyKeyboardRemove())
+    else:
+        # Отображаем доступные категории для выбранного бренда
+        categories = brand_categories.get(selected_brand, [])
+        device_categories_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+        for category in categories:
+            device_categories_keyboard.add(KeyboardButton(category))
+        device_categories_keyboard.add(KeyboardButton('Другое'))
+        device_categories_keyboard.add(KeyboardButton('Вернуться в меню'))
 
-@dp.message_handler(lambda message: message.text in ['iPhone', 'Mac', 'Apple Watch', 'Google Pixel', 'Samsung', 'Другое'], state=Form.brand)
+        await Form.category.set()
+        await message.reply(f"Выберите категорию устройства для бренда {selected_brand}:", reply_markup=device_categories_keyboard)
+
+@dp.message_handler(state=Form.category)
 async def select_device_category(message: types.Message, state: FSMContext):
     selected_category = message.text
-    await state.update_data(brand=selected_category)
+    await state.update_data(category=selected_category)
     if selected_category == 'Другое':
         await Form.model.set()
         await message.reply("Напишите полное название модели своего устройства:", reply_markup=types.ReplyKeyboardRemove())
     else:
         models = []
         for df in df_dict.values():
-            models.extend(df[df['Модель'].str.startswith(selected_category)]['Модель'].unique())
+            models.extend(df[df['Модель'].str.contains(selected_category, na=False)]['Модель'].unique())
         models = list(set(models))  # Remove duplicates
         models_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         for model in models:
@@ -113,12 +139,16 @@ async def select_memory(message: types.Message, state: FSMContext):
             memory_keyboard.add(KeyboardButton(memory))
         memory_keyboard.add(KeyboardButton('Вернуться в меню'))
         await Form.memory.set()
-        if user_data['brand'] == "Apple Watch":
+        if message.text == "Моей модели нет" and user_data['brand'] == "Apple Watch":
             await message.reply("Выберите размер экрана для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif user_data['brand'] != "Apple Watch" and user_data['brand'] != "Mac":
+        elif message.text != "Моей модели нет" and user_data['brand'] == "Apple Watch":
+            await message.reply(f"Выберите размер экрана для {selected_model}:",reply_markup=memory_keyboard)
+        elif user_data['brand'] != "Apple Watch" and user_data['brand'] != "Mac" and message.text == "Моей модели нет":
             await message.reply("Выберите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif user_data['brand'] == "Mac":
+        elif user_data['brand'] == "Mac" and message.text != "Моей модели нет":
             await message.reply("Укажите, пожалуйста, объёмы оперативной и встроенной памяти через /. Например «8/256»:", reply_markup=types.ReplyKeyboardRemove())
+        elif message.text != "Моей модели нет" and user_data['brand'] == "Mac":
+            await message.reply(f"Укажите, пожалуйста, объёмы оперативной и встроенной памяти через / для {selected_model}. Например «8/256»:",reply_markup=memory_keyboard)
         else:
             await message.reply(f"Выберите конфигурацию памяти для {selected_model}:", reply_markup=memory_keyboard)
 
@@ -402,7 +432,7 @@ async def handle_contact_choice(message: types.Message, state: FSMContext):
         else:
             await bot.send_message(CHAT_ID, caption_text)
 
-        await message.reply("Спасибо! Ваша заявка принята. Мы свяжемся с вами в ближайшее время.", reply_markup=device_categories_keyboard)
+        await message.reply("Спасибо! Ваша заявка принята. Мы свяжемся с вами в ближайшее время.", reply_markup=brands_keyboard)
     else:
         user_data = await state.get_data()
         username = message.from_user.username
@@ -451,7 +481,7 @@ async def return_to_menu(message: types.Message, state: FSMContext):
     await state.finish()
     await Form.brand.set()  # Устанавливаем начальное состояние
     
-    await message.reply("Вы вернулись в меню. Выберите категорию устройства:", reply_markup=device_categories_keyboard)
+    await message.reply("Вы вернулись в меню. Выберите категорию устройства:", reply_markup=brands_keyboard)
 
 @dp.message_handler(lambda message: message.text == 'Вернуться в меню', state='*')
 async def handle_return_to_menu(message: types.Message, state: FSMContext):
