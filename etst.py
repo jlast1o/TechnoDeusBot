@@ -151,7 +151,7 @@ async def select_memory(message: types.Message, state: FSMContext):
         elif user_data['category'] == "MacBook" and message.text == "Моей модели нет":
             await message.reply("Укажите, пожалуйста, объёмы оперативной и встроенной памяти через /. Например «8/256»:", reply_markup=types.ReplyKeyboardRemove())
         elif message.text != "Моей модели нет" and user_data['category'] == "MacBook":
-            await message.reply(f"Укажите, пожалуйста, объёмы оперативной и встроенной памяти через / для {selected_model}. Например «8/256»:",reply_markup=memory_keyboard)
+            await message.reply(f"Выберите, пожалуйста, объёмы оперативной и встроенной памяти для {selected_model}:",reply_markup=memory_keyboard)
         else:
             await message.reply(f"Выберите конфигурацию памяти для {selected_model}:", reply_markup=memory_keyboard)
 
