@@ -93,6 +93,9 @@ async def select_brand(message: types.Message, state: FSMContext):
 async def select_device_category(message: types.Message, state: FSMContext):
     selected_category = message.text
     await state.update_data(category=selected_category)
+    if message.text == 'Вернуться в меню':
+        await return_to_menu(message, state)
+        return
     if selected_category == 'Другое':
         await Form.model.set()
         await message.reply("Напишите полное название модели своего устройства:", reply_markup=types.ReplyKeyboardRemove())
@@ -139,15 +142,15 @@ async def select_memory(message: types.Message, state: FSMContext):
             memory_keyboard.add(KeyboardButton(memory))
         memory_keyboard.add(KeyboardButton('Вернуться в меню'))
         await Form.memory.set()
-        if message.text == "Моей модели нет" and user_data['brand'] == "Apple Watch":
+        if message.text == "Моей модели нет" and user_data['category'] == "Apple Watch":
             await message.reply("Выберите размер экрана для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text != "Моей модели нет" and user_data['brand'] == "Apple Watch":
+        elif message.text != "Моей модели нет" and user_data['category'] == "Apple Watch":
             await message.reply(f"Выберите размер экрана для {selected_model}:",reply_markup=memory_keyboard)
-        elif user_data['brand'] != "Apple Watch" and user_data['brand'] != "Mac" and message.text == "Моей модели нет":
+        elif user_data['category'] != "Apple Watch" and user_data['category'] != "MacBook" and message.text == "Моей модели нет":
             await message.reply("Выберите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif user_data['brand'] == "Mac" and message.text != "Моей модели нет":
+        elif user_data['category'] == "MacBook" and message.text == "Моей модели нет":
             await message.reply("Укажите, пожалуйста, объёмы оперативной и встроенной памяти через /. Например «8/256»:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text != "Моей модели нет" and user_data['brand'] == "Mac":
+        elif message.text != "Моей модели нет" and user_data['category'] == "MacBook":
             await message.reply(f"Укажите, пожалуйста, объёмы оперативной и встроенной памяти через / для {selected_model}. Например «8/256»:",reply_markup=memory_keyboard)
         else:
             await message.reply(f"Выберите конфигурацию памяти для {selected_model}:", reply_markup=memory_keyboard)
@@ -160,7 +163,8 @@ async def select_sim_version(message: types.Message, state: FSMContext):
     selected_memory = message.text
     await state.update_data(memory=selected_memory)
     user_data = await state.get_data()
-    if user_data['brand'] == 'iPhone':
+    model_name = user_data.get('model', '').strip().lower().split()[0]
+    if model_name == 'iphone':
         sim_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         sim_keyboard.add(KeyboardButton('e-sim'))
         sim_keyboard.add(KeyboardButton('e-sim+micro-sim'))
@@ -195,7 +199,7 @@ async def select_battery(message: types.Message, state: FSMContext):
     await Form.battery.set()
     skip_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
     user_data = await state.get_data()
-    if user_data['brand'] == 'Mac': 
+    if user_data['category'] == 'MacBook': 
         skip_keyboard.add(KeyboardButton('Нормальное'))
         skip_keyboard.add(KeyboardButton('Срок эксплуатации истекает'))
         skip_keyboard.add(KeyboardButton('Требуется замена'))
@@ -224,7 +228,7 @@ async def select_condition(message: types.Message, state: FSMContext):
     if message.text == 'Вернуться в меню':
         await return_to_menu(message, state)
         return
-    if not message.text.isdigit and user_data['brand'] != 'Mac':
+    if not message.text.isdigit() and user_data['category'] != 'MacBook':
         await message.reply("Пожалуйста, введите числовое значение для емкости аккумулятора.")
         return
     battery_capacity = message.text
@@ -251,7 +255,7 @@ async def select_completeness(message: types.Message, state: FSMContext):
     completeness_keyboard.add(KeyboardButton('Неполная'))
     completeness_keyboard.add(KeyboardButton('Вернуться в меню'))
     await Form.completeness.set()
-    if (user_data['brand'] == 'Apple Watch' or user_data['brand'] == 'Mac'):
+    if (user_data['category'] == 'Apple Watch' or user_data['category'] == 'Mac'):
         await message.reply("У вас есть полный комплект устройства (коробка, кабель и т.п.)?", reply_markup=completeness_keyboard)
     else:
         await message.reply("У вас есть полный комплект устройства (коробка, кабель, наушники и т.п.)?", reply_markup=completeness_keyboard)
@@ -314,7 +318,7 @@ async def request_photos(message: types.Message, state: FSMContext):
 async def skip_photos(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
-    if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
+    if user_data['category'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
         await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
