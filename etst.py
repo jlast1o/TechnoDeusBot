@@ -23,6 +23,7 @@ class Form(StatesGroup):
     category = State()
     model = State()
     memory = State()
+    extra = State()
     color = State()
     sim = State()
     battery = State()
@@ -34,6 +35,9 @@ class Form(StatesGroup):
     photos = State()
     confirm_update = State()
     contact_choice = State()
+    contact_way = State()
+    contact_info = State()
+    one_more = State()
 
 @dp.message_handler(commands=['start'])
 async def send_welcome(message: types.Message):
@@ -95,7 +99,7 @@ async def select_device_category(message: types.Message, state: FSMContext):
 @dp.message_handler(lambda message: message.text == 'Моей модели нет', state=Form.model)
 async def no_model(message: types.Message, state: FSMContext):
     await Form.model.set()
-    await state.update_data(nomodel=message.text)
+    await state.update_data(selected_model='Моей модели нет')
     await message.reply("Напишите полное название модели своего устройства:", reply_markup=types.ReplyKeyboardRemove())
 
 @dp.message_handler(state=Form.model)
@@ -110,17 +114,19 @@ async def select_memory(message: types.Message, state: FSMContext):
         await Form.memory.set()
         await message.reply("Напишите конфигурацию памяти своего устройства:", reply_markup=types.ReplyKeyboardRemove())
     else:
+        nomodel = user_data.get('selected_model', '')
         available_memories = []
         for sheet_name, df in df_dict.items():
             if 'Модель' in df.columns:
                 model_row = df[df['Модель'] == selected_model]
                 if not model_row.empty:
                     non_empty_columns = model_row.dropna(axis=1).columns[1:]  # Skip the first column (Модель)
-                    available_memories.extend(non_empty_columns)
+                    available_memories.extend(non_empty_columns) 
         available_memories = list(set(available_memories))  # Remove duplicates
         memory_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         for memory in available_memories:
             memory_keyboard.add(KeyboardButton(memory))
+        memory_keyboard.add(KeyboardButton('Моего параметра нет'))
         memory_keyboard.add(KeyboardButton('Вернуться в меню'))
         await Form.memory.set()
         if 'apple watch ultra' in selected_model.lower():
@@ -128,16 +134,22 @@ async def select_memory(message: types.Message, state: FSMContext):
             await Form.color.set()
             await message.reply("Напишите цвет своего устройства:", reply_markup=types.ReplyKeyboardRemove())
             return
-        if message.text == "Моей модели нет" and user_data['category'] == "Apple Watch":
-            await message.reply("Выберите размер экрана для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text != "Моей модели нет" and user_data['category'] == "Apple Watch":
-            await message.reply(f"Выберите размер экрана для {selected_model}:",reply_markup=memory_keyboard)
-        elif user_data['category'] != "Apple Watch" and user_data['category'] != "MacBook" and message.text == "Моей модели нет":
-            await message.reply("Выберите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
-        elif user_data['category'] == "MacBook" and message.text == "Моей модели нет":
-            await message.reply("Укажите, пожалуйста, объёмы оперативной и встроенной памяти через /. Например «8/256»:", reply_markup=types.ReplyKeyboardRemove())
-        elif message.text != "Моей модели нет" and user_data['category'] == "MacBook":
+        if nomodel == "Моей модели нет" and user_data['category'] == "Apple Watch":
+            await message.reply("Выберите размер экрана для вашего устройства:", reply_markup=watches_size_keybord)
+        elif nomodel != "Моей модели нет" and user_data['category'] == "Apple Watch":
+            await message.reply(f"Выберите размер экрана для {selected_model}:",reply_markup=watches_size_keybord)
+        elif user_data['category'] != "Apple Watch" and user_data['category'] != "MacBook" and nomodel == "Моей модели нет":
+            await message.reply("Введите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
+        elif user_data['category'] == "MacBook" and nomodel == "Моей модели нет":
+            await message.reply("Введите конфигурацию памяти вашего устройства (оперативной и встроенной), например '8/256' :", reply_markup=types.ReplyKeyboardRemove())
+        elif nomodel != "Моей модели нет" and user_data['category'] == "MacBook":
             await message.reply(f"Выберите, пожалуйста, объёмы оперативной и встроенной памяти для {selected_model}:",reply_markup=memory_keyboard)
+        elif user_data['category'] == "Galaxy" and nomodel == "Моей модели нет":
+            await message.reply("Введите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
+        elif user_data['category'] == "Pixel" and nomodel == "Моей модели нет":
+            await message.reply("Введите конфигурацию памяти для вашего устройства:", reply_markup=types.ReplyKeyboardRemove())
+        elif user_data['category'] == "Другое":
+            await message.reply("Введите конфигурацию для вашего устройства (память или размер экрана):", reply_markup=types.ReplyKeyboardRemove())
         else:
             await message.reply(f"Выберите конфигурацию памяти для {selected_model}:", reply_markup=memory_keyboard)
 
@@ -145,6 +157,9 @@ async def select_memory(message: types.Message, state: FSMContext):
 async def select_sim_version(message: types.Message, state: FSMContext):
     if message.text == 'Вернуться в меню':
         await return_to_menu(message, state)
+        return
+    if message.text == 'Моего параметра нет':
+        await extra_memory(message, state)
         return
     selected_memory = message.text
     await state.update_data(memory=selected_memory)
@@ -161,6 +176,20 @@ async def select_sim_version(message: types.Message, state: FSMContext):
     else:
         await Form.color.set()
         await message.reply("Напишите цвет своего устройства:", reply_markup=types.ReplyKeyboardRemove())
+
+@dp.message_handler(state=Form.extra)
+async def extra_memory(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    category = user_data['category']
+    if category == 'Apple Watch': 
+        await Form.memory.set()
+        await message.reply('Выберите размер экрана:', reply_markup=watches_size_keybord)
+    elif category == 'MacBook' or category == 'iMac': 
+        await Form.memory.set()
+        await message.reply('Введите конфигурацию памяти вашего устройства (оперативной и встроенной), например "8/256" :', reply_markup=types.ReplyKeyboardRemove())
+    else:
+        await Form.memory.set()
+        await message.reply('Выберите конфигурацию памяти для вашего устройства', reply_markup=phone_memory_keybord)
 
 @dp.message_handler(state=Form.sim)
 async def select_color(message: types.Message, state: FSMContext):
@@ -304,12 +333,13 @@ async def request_photos(message: types.Message, state: FSMContext):
 async def skip_photos(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
-    if user_data['category'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
+    if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
+        await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
         await Form.contact_choice.set()
+
     else:
         try:
             model = user_data['model']
@@ -324,18 +354,26 @@ async def skip_photos(message: types.Message, state: FSMContext):
                         price = price_row[memory].values[0]
                         break
 
-            if price is not None:
+            if price is not None and not pd.isna(price):
                 formatted_price = f"{price / 1000:.3f}".replace('.', ',')
-                await message.reply(f"Вот примерная оценка стоимости вашего девайса: до {formatted_price}₽. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся в ближайшее время и свяжемся с вами.")
+                contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+                contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+                await Form.contact_choice.set()
+                await message.reply(f"Вот примерная оценка стоимости вашего девайса: до {formatted_price}₽. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся в ближайшее время и свяжемся с вами.", reply_markup=contact_keyboard)
+            else:
+                contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+                contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+                await Form.contact_choice.set()
+                await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
         except Exception as e:
-            await message.reply("Поскольку вашей модели нет в наших списках, нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
-            
-    contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
-    contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
-    await Form.contact_choice.set()
-    await message.reply("Выберите, нужно ли с вами связаться:", reply_markup=contact_keyboard)
-
+            contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+            contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+            contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+            await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
+            await Form.contact_choice.set()
+ 
 @dp.message_handler(content_types=['photo'], state=Form.photos)
 async def handle_photos(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
@@ -355,11 +393,11 @@ async def confirm_update(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
     if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("Нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
+        await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
-        await Form.contact_choice.set()\
+        await Form.contact_choice.set()
 
     else:
         try:
@@ -375,17 +413,25 @@ async def confirm_update(message: types.Message, state: FSMContext):
                         price = price_row[memory].values[0]
                         break
 
-            if price is not None:
+            if price is not None and not pd.isna(price):
                 formatted_price = f"{price / 1000:.3f}".replace('.', ',')
-                await message.reply(f"Вот примерная оценка стоимости вашего девайса: до {formatted_price}₽. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся в ближайшее время и свяжемся с вами.")
+                contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+                contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+                await Form.contact_choice.set()
+                await message.reply(f"Вот примерная оценка стоимости вашего девайса: до {formatted_price}₽. Точнее оценить стоимость может лично менеджер, если вам это интересно, мы этим займемся в ближайшее время и свяжемся с вами.", reply_markup=contact_keyboard)
+            else:
+                contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+                contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+                contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+                await Form.contact_choice.set()
+                await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
         except Exception as e:
-            await message.reply("Поскольку вашей модели нет в наших списках, нам нужно чуть больше времени, чтоб оценить ваш девайс, в ближайшее время вернемся с ответом.")
-            
-    contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
-    contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
-    contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
-    await Form.contact_choice.set()
-    await message.reply("Выберите, нужно ли с вами связаться:", reply_markup=contact_keyboard)
+            contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
+            contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
+            contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
+            await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
+            await Form.contact_choice.set()
 
 
 @dp.message_handler(lambda message: message.text.lower() == 'отправить заново', state=Form.photos)
@@ -400,32 +446,57 @@ async def resend_photo(message: types.Message, state: FSMContext):
 @dp.message_handler(state=Form.contact_choice)
 async def handle_contact_choice(message: types.Message, state: FSMContext):
     if message.text.lower() == 'да, свяжитесь со мной':
-        user_data = await state.get_data()
-        username = message.from_user.username
-
-        caption_text = (
-            f"Новая заявка от пользователя @{username}:\n"
-            f"Бренд: {user_data['brand']}\n"
-            f"Модель: {user_data['model']}\n"
-            f"Память: {user_data['memory']}\n"
-            f"Цвет: {user_data['color']}\n"
-            f"Сим-карта: {user_data.get('sim', 'N/A')}\n"
-            f"Емкость аккумулятора: {user_data.get('battery', 'N/A')}\n"
-            f"Состояние: {user_data['condition']}\n"
-            f"Комплектность: {user_data['completeness']}\n"
-            f"Детали комплектности: {user_data.get('completeness_details', 'N/A')}\n"
-            f"Ремонт: {user_data.get('repair_status', 'N/A')}\n"
-            f"Детали ремонта: {user_data.get('repair_details', 'N/A')}\n"
-        )
-        photos = user_data.get('photos', [])
-        if photos:
-            media_group = [InputMediaPhoto(photo, caption=caption_text if i == 0 else '') for i, photo in enumerate(photos)]
-            await bot.send_media_group(CHAT_ID, media_group)
-        else:
-            await bot.send_message(CHAT_ID, caption_text)
-
-        await message.reply("Спасибо! Ваша заявка принята. Мы свяжемся с вами в ближайшее время.", reply_markup=brands_keyboard)
+        await Form.contact_way.set()
+        await message.reply("Выберите предпочтительный способ, как с вами можно связаться:", reply_markup=way_contact)
     else:
+        await Form.contact_info.set()
+        user_data = await state.get_data()
+        await state.update_data(contact_way=message.text)
+
+@dp.message_handler(state=Form.contact_way)
+async def contact_choice_way(message: types.Message, state: FSMContext):
+    await state.update_data(contact_way=message.text)
+    if message.text == 'Telegram':
+        await message.reply('Напишите ваш ник в телеграме или номер телефона:', reply_markup=types.ReplyKeyboardRemove())
+        await Form.contact_info.set()
+    elif message.text == 'По номеру телефона' or message.text == 'WhatsApp':
+        await message.reply('Напишите ваш номер телефона:', reply_markup=types.ReplyKeyboardRemove())
+        await Form.contact_info.set()
+    else: 
+        await message.reply('Выберите предпочтительный способ связаться при помощи кнопок:', reply_markup=way_contact)
+        return
+
+@dp.message_handler(state=Form.contact_info)
+async def one_more_circle(message: types.Message, state: FSMContext):
+    user_data = await state.get_data()
+    contact_way = user_data.get('contact_way')
+    if user_data['contact_way'] in ['Telegram','WhatsApp','По номеру телефона']:
+        await state.update_data(contact_info = message.text)   
+        username = message.from_user.username
+
+        caption_text = (
+            f"Новая заявка от пользователя @{username}:\n"
+            f"Бренд: {user_data['brand']}\n"
+            f"Модель: {user_data['model']}\n"
+            f"Память: {user_data['memory']}\n"
+            f"Цвет: {user_data['color']}\n"
+            f"Сим-карта: {user_data.get('sim', 'N/A')}\n"
+            f"Емкость аккумулятора: {user_data.get('battery', 'N/A')}\n"
+            f"Состояние: {user_data['condition']}\n"
+            f"Комплектность: {user_data['completeness']}\n"
+            f"Детали комплектности: {user_data.get('completeness_details', 'N/A')}\n"
+            f"Ремонт: {user_data.get('repair_status', 'N/A')}\n"
+            f"Детали ремонта: {user_data.get('repair_details', 'N/A')}\n"
+            f"Способ связаться: {contact_way}\n"
+            f"Контакт для связи: {message.text}\n"
+        )
+        photos = user_data.get('photos', [])
+        if photos:
+            media_group = [InputMediaPhoto(photo, caption=caption_text if i == 0 else '') for i, photo in enumerate(photos)]
+            await bot.send_media_group(CHAT_ID, media_group)
+        else:
+            await bot.send_message(CHAT_ID, caption_text)
+    else: 
         user_data = await state.get_data()
         username = message.from_user.username
 
@@ -449,10 +520,19 @@ async def handle_contact_choice(message: types.Message, state: FSMContext):
             await bot.send_media_group(CHAT_ID, media_group)
         else:
             await bot.send_message(CHAT_ID, caption_text)
-    await state.finish()
 
-    await return_to_menu(message, state)
+    await message.reply('Чтобы повторно заполнить форму для оценки устройства в Trade-In, нажмите кнопку:', reply_markup=one_more_keyboard)
+    await Form.one_more.set()
 
+@dp.message_handler(state=Form.one_more)
+async def redirect_to_menu(message: types.Message, state: FSMContext):
+    if message.text == 'Начать оценку заново':
+        await state.finish()
+        await return_to_menu(message, state)
+    else: 
+        await message.reply('Чтобы повторно заполнить форму для оценки устройства в Trade-In, нажмите кнопку:', reply_markup=one_more_keyboard)
+        return
+    
 @dp.message_handler(lambda message: message.text == 'Обновить таблицу')
 async def update_table(message: types.Message):
     await message.reply("Пожалуйста, отправьте новый файл 'phones.xlsx'.")
@@ -482,3 +562,58 @@ async def handle_return_to_menu(message: types.Message, state: FSMContext):
 
 if __name__ == '__main__':
     executor.start_polling(dp, skip_updates=True)
+
+'''
+user_data = await state.get_data()
+        username = message.from_user.username
+
+        caption_text = (
+            f"Новая заявка от пользователя @{username}:\n"
+            f"Бренд: {user_data['brand']}\n"
+            f"Модель: {user_data['model']}\n"
+            f"Память: {user_data['memory']}\n"
+            f"Цвет: {user_data['color']}\n"
+            f"Сим-карта: {user_data.get('sim', 'N/A')}\n"
+            f"Емкость аккумулятора: {user_data.get('battery', 'N/A')}\n"
+            f"Состояние: {user_data['condition']}\n"
+            f"Комплектность: {user_data['completeness']}\n"
+            f"Детали комплектности: {user_data.get('completeness_details', 'N/A')}\n"
+            f"Ремонт: {user_data.get('repair_status', 'N/A')}\n"
+            f"Детали ремонта: {user_data.get('repair_details', 'N/A')}\n"
+        )
+        photos = user_data.get('photos', [])
+        if photos:
+            media_group = [InputMediaPhoto(photo, caption=caption_text if i == 0 else '') for i, photo in enumerate(photos)]
+            await bot.send_media_group(CHAT_ID, media_group)
+        else:
+            await bot.send_message(CHAT_ID, caption_text)
+            
+            
+
+        user_data = await state.get_data()
+        username = message.from_user.username
+
+        caption_text = (
+            f"Новая заявка от пользователя @{username}:\n"
+            f"Бренд: {user_data['brand']}\n"
+            f"Модель: {user_data['model']}\n"
+            f"Память: {user_data['memory']}\n"
+            f"Цвет: {user_data['color']}\n"
+            f"Сим-карта: {user_data.get('sim', 'N/A')}\n"
+            f"Емкость аккумулятора: {user_data.get('battery', 'N/A')}\n"
+            f"Состояние: {user_data['condition']}\n"
+            f"Комплектность: {user_data['completeness']}\n"
+            f"Детали комплектности: {user_data.get('completeness_details', 'N/A')}\n"
+            f"Ремонт: {user_data.get('repair_status', 'N/A')}\n"
+            f"Детали ремонта: {user_data.get('repair_details', 'N/A')}\n"
+        )
+        photos = user_data.get('photos', [])
+        if photos:
+            media_group = [InputMediaPhoto(photo, caption=caption_text if i == 0 else '') for i, photo in enumerate(photos)]
+            await bot.send_media_group(CHAT_ID, media_group)
+        else:
+            await bot.send_message(CHAT_ID, caption_text)
+    await state.finish()
+
+    await return_to_menu(message, state)
+            '''
