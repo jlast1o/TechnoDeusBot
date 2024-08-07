@@ -334,7 +334,7 @@ async def skip_photos(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
     if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
+        await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
@@ -366,12 +366,12 @@ async def skip_photos(message: types.Message, state: FSMContext):
                 contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
                 contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
                 await Form.contact_choice.set()
-                await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
+                await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
         except Exception as e:
             contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
             contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
             contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
-            await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
+            await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
             await Form.contact_choice.set()
  
 @dp.message_handler(content_types=['photo'], state=Form.photos)
@@ -393,7 +393,7 @@ async def confirm_update(message: types.Message, state: FSMContext):
     user_data = await state.get_data()
     
     if user_data['brand'] == 'Другое' or (user_data['model'] == "Моей модели нет"):
-        await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
+        await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?")
         contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
         contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
         contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
@@ -425,12 +425,12 @@ async def confirm_update(message: types.Message, state: FSMContext):
                 contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
                 contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
                 await Form.contact_choice.set()
-                await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
+                await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard)
         except Exception as e:
             contact_keyboard = ReplyKeyboardMarkup(resize_keyboard=True)
             contact_keyboard.add(KeyboardButton('Да, свяжитесь со мной'))
             contact_keyboard.add(KeyboardButton('Спасибо, пока подумаю'))
-            await message.reply("К сожалению, мне не по зубам оценить ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
+            await message.reply("К сожалению, мне не по зубам оценить Ваше устройство, придется звать на помощь живого человека. Наш менеджер уже изучает Вашу заявку и вернется с ответом в течение 30 минут. Написать Вам?", reply_markup=contact_keyboard) 
             await Form.contact_choice.set()
 
 
