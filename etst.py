@@ -1,7 +1,7 @@
 from imports import *
 from keybords import *
 
-API_TOKEN = '7449449443:AAE8XSHFOMs7jVFFc26RTRQKHXjtQK8_OC4'
+API_TOKEN = '7067090296:AAExj1Z-u-L_0foR8-Ktjv1CdCQ5UgUtSP0'
 CHAT_ID = '-1002214136948'
 
 bot = Bot(token=API_TOKEN)
