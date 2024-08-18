@@ -449,9 +449,8 @@ async def handle_contact_choice(message: types.Message, state: FSMContext):
         await Form.contact_way.set()
         await message.reply("Выберите предпочтительный способ, как с вами можно связаться:", reply_markup=way_contact)
     else:
-        await Form.contact_info.set()
-        user_data = await state.get_data()
-        await state.update_data(contact_way=message.text)
+        await message.reply('Чтобы повторно заполнить форму для оценки устройства в Trade-In, нажмите кнопку:', reply_markup=one_more_keyboard)
+        await Form.one_more.set()
 
 @dp.message_handler(state=Form.contact_way)
 async def contact_choice_way(message: types.Message, state: FSMContext):
