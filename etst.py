@@ -1,5 +1,9 @@
 from imports import *
 from keybords import *
+from io import BytesIO
+import logging
+
+logger = logging.getLogger(__name__)
 
 API_TOKEN = '7067090296:AAExj1Z-u-L_0foR8-Ktjv1CdCQ5UgUtSP0'
 CHAT_ID = '-1002214136948'
@@ -539,13 +543,38 @@ async def update_table(message: types.Message):
 @dp.message_handler(content_types=types.ContentType.DOCUMENT)
 async def handle_new_table(message: types.Message):
     document = message.document
-    if document.file_name == 'phones.xlsx':
-        await document.download(destination_file='phones.xlsx')
-        global df
-        df = pd.read_excel('phones.xlsx')
-        await message.reply("Таблица успешно обновлена.")
-    else:
-        await message.reply("Пожалуйста, отправьте файл с именем 'phones.xlsx'.")
+    
+    # Проверка расширения файла
+    if not document.file_name.endswith('.xlsx'):
+        await message.reply("❌ Неверный формат файла! Отправьте файл с расширением .xlsx")
+        return
+
+    try:
+        # Скачивание файла в память
+        file_bytes = BytesIO()
+        await bot.download_file_by_id(document.file_id, destination=file_bytes)
+        file_bytes.seek(0)
+        
+        # Временная проверка данных
+        temp_data = pd.read_excel(file_bytes, sheet_name=None, engine='openpyxl')
+        if not all(['Модель' in df.columns for df in temp_data.values()]):
+            raise ValueError("Файл должен содержать колонку 'Модель' во всех листах")
+
+        # Сохраняем файл
+        with open('phones.xlsx', 'wb') as f:
+            f.write(file_bytes.getvalue())
+        
+        # Обновляем данные в памяти
+        global df_dict
+        df_dict = pd.read_excel('phones.xlsx', sheet_name=None)
+        
+        await message.reply("✅ Таблица успешно обновлена!")
+        
+    except ValueError as ve:
+        await message.reply(f"❌ Ошибка формата данных: {str(ve)}")
+    except Exception as e:
+        logger.error(f"Error updating Excel: {e}")
+        await message.reply("❌ Произошла ошибка при обработке файла. Проверьте формат и содержимое.")
 
 
 async def return_to_menu(message: types.Message, state: FSMContext):
